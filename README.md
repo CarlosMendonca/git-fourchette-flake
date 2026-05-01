@@ -56,4 +56,4 @@ nix build
 
 ## Current version
 
-gitfourchette [v1.6.0](https://github.com/jorio/gitfourchette/releases/tag/v1.6.0)
+gitfourchette [v1.7.1](https://github.com/jorio/gitfourchette/releases/tag/v1.7.1)

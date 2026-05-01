@@ -10,7 +10,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        version = "1.6.0";
+        version = "1.7.1";
       in {
         packages.gitfourchette = pkgs.python3Packages.buildPythonApplication {
           pname = "gitfourchette";
@@ -20,8 +20,8 @@
           src = pkgs.fetchFromGitHub {
             owner = "jorio";
             repo = "gitfourchette";
-            rev = "v${version}";
-            hash = "sha256-93Gy1OcgLATU7ND/sjDkEiZcKGdVprJ4s3HHoQLRDJg=";
+            rev = "v1.7.1";
+            hash = "sha256-qrndXJQwAfJMURSc97wtOKNyszdTESVFGClS3RrQ12M=";
           };
 
           nativeBuildInputs = with pkgs.python3Packages; [
