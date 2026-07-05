@@ -26,10 +26,19 @@ pkgs.python3Packages.buildPythonApplication {
     hash = srcHash;
   };
 
-  nativeBuildInputs = with pkgs.python3Packages; [
+  nativeBuildInputs = [
+    # wrapGAppsHook3 puts GTK's GSettings schemas on the runtime environment.
+    # gitfourchette is a Qt app, but Qt's *native* file dialog on a GTK/GNOME
+    # desktop loads GTK's file chooser, which aborts at runtime unless the
+    # `org.gtk.Settings.FileChooser` schema (from gtk3) is reachable.
+    pkgs.wrapGAppsHook3
+  ]
+  ++ (with pkgs.python3Packages; [
     setuptools
     wheel
-  ];
+  ]);
+
+  buildInputs = [ pkgs.gtk3 ];
 
   dependencies = with pkgs.python3Packages; [
     pygit2
