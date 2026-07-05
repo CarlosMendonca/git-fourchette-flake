@@ -1,53 +1,67 @@
 {
-  description = "gitfourchette - the comfortable Git UI";
+  description = "gitfourchette - the comfortable Git UI, version-selectable";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+    }:
+    let
+      # Single source of truth for every packaged release.
+      gitfourchetteData = builtins.fromJSON (builtins.readFile ./data/gitfourchette.json);
+
+      mkPackages =
+        pkgs:
+        import ./lib/mk-packages.nix {
+          inherit pkgs gitfourchetteData;
+          lib = pkgs.lib;
+        };
+    in
+    {
+      # Fold every gitfourchette_*/gitfourchette package into a consumer's nixpkgs.
+      # Build from `prev` (leaf packages that don't reference each other), and drop
+      # the `default` alias so consumers don't get a stray `pkgs.default`.
+      overlays.default = _final: prev: removeAttrs (mkPackages prev) [ "default" ];
+    }
+    // flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        version = "1.8.0";
-      in {
-        packages.gitfourchette = pkgs.python3Packages.buildPythonApplication {
-          pname = "gitfourchette";
-          inherit version;
-          pyproject = true;
 
-          src = pkgs.fetchFromGitHub {
-            owner = "jorio";
-            repo = "gitfourchette";
-            rev = "v1.8.0";
-            hash = "sha256-GU/Xa9g4DW0npZxNZ4I9vb1ypEqOthSRuZ5Frv4vIrE=";
-          };
-
-          nativeBuildInputs = with pkgs.python3Packages; [
-            setuptools
-            wheel
+        # `nix run .#update` appends the newest release to data/gitfourchette.json.
+        update = pkgs.writeShellApplication {
+          name = "gitfourchette-update";
+          runtimeInputs = [
+            pkgs.curl
+            pkgs.jq
+            pkgs.coreutils
+            pkgs.gnugrep
+            pkgs.nix
           ];
-
-          dependencies = with pkgs.python3Packages; [
-            pygit2
-            pyqt6
-            pygments
-          ];
-
-          meta = {
-            description = "The comfortable Git UI";
-            homepage = "https://gitfourchette.org";
-            license = pkgs.lib.licenses.gpl3Only;
-            mainProgram = "gitfourchette";
-          };
+          text = ''exec bash ${./updater/update.sh} "$@"'';
         };
-
-        packages.default = self.packages.${system}.gitfourchette;
+      in
+      {
+        packages = mkPackages pkgs;
 
         apps.gitfourchette = flake-utils.lib.mkApp {
           drv = self.packages.${system}.gitfourchette;
         };
         apps.default = self.apps.${system}.gitfourchette;
-      });
+
+        apps.update = {
+          type = "app";
+          program = "${update}/bin/gitfourchette-update";
+          meta.description = "Append the newest gitfourchette release to data/gitfourchette.json";
+        };
+
+        formatter = pkgs.nixfmt;
+      }
+    );
 }

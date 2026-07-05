@@ -23,12 +23,12 @@ jobs:
         run: |
           LATEST=$(gh api repos/jorio/gitfourchette/releases/latest --jq '.tag_name')
           LATEST_SEMVER="${LATEST#v}"
-          CURRENT=$(grep -oP '(?<=version = ")[^"]+' flake.nix)
+          CURRENT=$(jq -r 'max_by(.version | split(".") | map(tonumber)) | .version' data/gitfourchette.json)
           echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
           echo "latest_semver=${LATEST_SEMVER}" >> "$GITHUB_OUTPUT"
           echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
-          if [ "$LATEST_SEMVER" = "$CURRENT" ]; then
-            echo "Already at latest version ${CURRENT}, nothing to do."
+          if jq -e --arg v "$LATEST_SEMVER" 'any(.[]; .version == $v)' data/gitfourchette.json >/dev/null; then
+            echo "Version ${LATEST_SEMVER} already in data/gitfourchette.json, nothing to do."
             echo "up_to_date=true" >> "$GITHUB_OUTPUT"
           elif gh pr list --head "auto-update/gitfourchette-${LATEST_SEMVER}" --json number --jq 'length' | grep -q '^[1-9]'; then
             echo "Open PR already exists for ${LATEST}, nothing to do."
@@ -45,38 +45,28 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
 
-      - name: Compute src hash
+      - name: Append new release to data/gitfourchette.json
         if: steps.version.outputs.up_to_date == 'false'
-        id: src_hash
-        run: |
-          LATEST="${{ steps.version.outputs.latest }}"
-          URL="https://github.com/jorio/gitfourchette/archive/refs/tags/${LATEST}.tar.gz"
-          RAW=$(nix-prefetch-url --unpack --type sha256 "$URL" 2>/dev/null)
-          SRC_HASH=$(nix hash to-sri --type sha256 "$RAW")
-          echo "src_hash=${SRC_HASH}" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix run path:.#update
 
-      - name: Patch version, rev, and src hash
+      - name: Refresh flake.lock
+        if: steps.version.outputs.up_to_date == 'false'
+        run: nix flake update
+
+      - name: Update README current version
         if: steps.version.outputs.up_to_date == 'false'
         run: |
           LATEST="${{ steps.version.outputs.latest }}"
-          LATEST_SEMVER="${{ steps.version.outputs.latest_semver }}"
-          SRC_HASH="${{ steps.src_hash.outputs.src_hash }}"
           sed -i \
-            -e "s|version = \"[^\"]*\"|version = \"${LATEST_SEMVER}\"|" \
-            -e "s|rev = \"v[^\"]*\"|rev = \"${LATEST}\"|" \
-            -e "s|hash = \"sha256-[^\"]*\"|hash = \"${SRC_HASH}\"|" \
-            flake.nix
-          sed -i \
-            -e "s|\[v[^]]*\](https://github.com/jorio/gitfourchette/releases/tag/v[^)]*)|[${LATEST}](https://github.com/jorio/gitfourchette/releases/tag/${LATEST})|" \
+            -e "s|gitfourchette \[v[^]]*\](https://github.com/jorio/gitfourchette/releases/tag/v[^)]*)|gitfourchette [${LATEST}](https://github.com/jorio/gitfourchette/releases/tag/${LATEST})|" \
             README.md
 
-      - name: Build
-        if: steps.version.outputs.up_to_date == 'false'
-        run: nix build path:.
-
-      - name: Verify binary exists
+      - name: Build and verify binary
         if: steps.version.outputs.up_to_date == 'false'
         run: |
+          nix build path:.#gitfourchette
           if [ ! -x ./result/bin/gitfourchette ]; then
             echo "ERROR: ./result/bin/gitfourchette not found or not executable"
             exit 1
@@ -96,17 +86,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add flake.nix README.md
-          git commit -m "chore: update gitfourchette to ${LATEST}"
+          git add data/gitfourchette.json flake.lock README.md
+          git commit -m "chore: add gitfourchette ${LATEST}"
           git push --force origin "$BRANCH"
 
           PR_URL=$(gh pr create \
-            --title "chore: update gitfourchette to ${LATEST}" \
-            --body "Automated update of gitfourchette from \`v${CURRENT}\` to \`${LATEST}\`.
+            --title "chore: add gitfourchette ${LATEST}" \
+            --body "Automated addition of gitfourchette \`${LATEST}\` (previous newest: \`v${CURRENT}\`).
 
           Changes:
-          - \`flake.nix\`: \`version\`, \`rev\`, \`hash\` updated
-          - \`README.md\`: version link updated to \`${LATEST}\`
+          - \`data/gitfourchette.json\`: new entry with \`srcHash\`
+          - \`README.md\`: current-version link updated to \`${LATEST}\`
+
+          Installable as \`#gitfourchette_$(printf '%s' "$LATEST_SEMVER" | tr '.' '_')\`; \`gitfourchette\`/\`default\` now track it.
 
           Build verified (binary exists at \`result/bin/gitfourchette\`)." \
             --base main \
@@ -114,6 +106,7 @@ jobs:
 
           gh pr merge --squash "$PR_URL"
 
+          # Keep pushing git tags so legacy ?ref=vX.Y.Z pins remain available.
           git checkout main
           git pull
           git tag "$LATEST"
