@@ -10,5 +10,9 @@
   {
     "version": "1.9.0",
     "srcHash": "sha256-MisHxfG5EvXCVxrapaMVKQ1s7XuJffz7lwWTIUwpDlg="
+  },
+  {
+    "version": "1.9.1",
+    "srcHash": "sha256-YzC78s0KDwKbS/woIIaC9f9zRsH+DCcGfrhKGG54zZ8="
   }
 ]
