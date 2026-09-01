@@ -96,4 +96,4 @@ This runs automatically every month via GitHub Actions.
 
 ## Current version
 
-gitfourchette [v1.9.1](https://github.com/jorio/gitfourchette/releases/tag/v1.9.1)
+gitfourchette [v1.11.0](https://github.com/jorio/gitfourchette/releases/tag/v1.11.0)
