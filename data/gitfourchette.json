@@ -14,5 +14,9 @@
   {
     "version": "1.9.1",
     "srcHash": "sha256-YzC78s0KDwKbS/woIIaC9f9zRsH+DCcGfrhKGG54zZ8="
+  },
+  {
+    "version": "1.11.0",
+    "srcHash": "sha256-vezN3f4o1iviBWKNG2ATRytn9ff9hAIf296cem5GTbs="
   }
 ]
